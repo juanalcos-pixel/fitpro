@@ -1061,15 +1061,22 @@ function toggleShop(key){shopCk[key]=!shopCk[key];sv('fe_shop',shopCk);renderSho
 
 // ============ GOOGLE SHEETS SYNC ============
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyOdwuflY-Wro7HFq8Inux3wUFuqPniwAkxsnBaM_465YMLd3WW77dOMtLjZrTFK9Jf/exec';
-async function syncSheet(tipo, datos){
+
+function syncSheet(tipo, datos){
   try{
     const now = new Date();
     const fecha = now.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' + now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-    await fetch(SHEET_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ fecha, tipo, peso:datos.peso||'', kcal:datos.kcal||'', proteina:datos.proteina||'', carbos:datos.carbos||'', grasas:datos.grasas||'' })
+    const params = new URLSearchParams({
+      fecha, tipo,
+      peso: datos.peso||'',
+      kcal: datos.kcal||'',
+      proteina: datos.proteina||'',
+      carbos: datos.carbos||'',
+      grasas: datos.grasas||''
     });
+    // Use image trick to avoid CORS — fires GET request silently
+    const img = new Image();
+    img.src = SHEET_URL + '?' + params.toString();
   } catch(e){ console.log('Sync:', e); }
 }
 
