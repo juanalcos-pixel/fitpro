@@ -812,7 +812,26 @@ function renderWeek(){
   }).join('');
 }
 function toggleWDB(day){document.getElementById('wdb-'+day).classList.toggle('open');}
-function setDaySt(day,st){wkStatus[day]=wkStatus[day]===st?'pending':st;sv('fe_wks_'+wk(),wkStatus);renderWeek();}
+function setDaySt(day,st){
+  wkStatus[day]=wkStatus[day]===st?'pending':st;
+  sv('fe_wks_'+wk(),wkStatus);
+  // Sync rutina to sheet when marked done
+  if(wkStatus[day]==='done'){
+    const w=WO[day];
+    const exDone=(wkEx[day]||[]).length;
+    const total=w.exercises.length;
+    const pct=Math.round((exDone/total)*100)+'%';
+    syncSheet('Rutina',{
+      dia: day,
+      rutina: w.name,
+      completados: exDone,
+      total: total,
+      pct: pct
+    });
+    showN('Rutina sincronizada con Google Sheet ✅');
+  }
+  renderWeek();
+}
 function toggleWkEx(day,idx){if(!wkEx[day])wkEx[day]=[];const arr=wkEx[day],pos=arr.indexOf(idx);if(pos>-1)arr.splice(pos,1);else arr.push(idx);sv('fe_wkex_'+wk(),wkEx);renderWeek();setTimeout(()=>{const b=document.getElementById('wdb-'+day);if(b)b.classList.add('open');},30);}
 function resetWeek(){if(!confirm('¿Resetear la semana?'))return;sv('fe_wks_'+wk(),{});sv('fe_wkex_'+wk(),{});wkStatus={};wkEx={};renderWeek();showN('Semana reseteada');}
 
@@ -969,9 +988,16 @@ function saveRecords(){
   recHistory.unshift({date:today, data:{...recData}});
   if(recHistory.length>12) recHistory.pop();
   sv('fe_recs',recData); sv('fe_rech',recHistory);
-  // Sync records to sheet
-  const recStr = Object.entries(recData).map(([k,v])=>k.split(' ').pop()+':'+v).join(' | ');
-  syncSheet('Records', {kcal: recStr});
+  // Sync records to Pesos sheet
+  syncSheet('Records', {
+    press_banca: recData['Press banca plano']||'',
+    dominadas: recData['Dominadas']||'',
+    sentadilla: recData['Sentadilla con barra']||'',
+    peso_muerto: recData['Peso muerto rumano']||'',
+    press_militar: recData['Press militar']||'',
+    remo_barra: recData['Remo barra']||'',
+    curl_biceps: recData['Curl bíceps']||''
+  });
   buildRecords(); showN('Récords guardados y sincronizados 🏆');
 }
 function renderRecHistory(){
@@ -1066,15 +1092,7 @@ function syncSheet(tipo, datos){
   try{
     const now = new Date();
     const fecha = now.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' + now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-    const params = new URLSearchParams({
-      fecha, tipo,
-      peso: datos.peso||'',
-      kcal: datos.kcal||'',
-      proteina: datos.proteina||'',
-      carbos: datos.carbos||'',
-      grasas: datos.grasas||''
-    });
-    // Use image trick to avoid CORS — fires GET request silently
+    const params = new URLSearchParams({fecha, tipo, ...datos});
     const img = new Image();
     img.src = SHEET_URL + '?' + params.toString();
   } catch(e){ console.log('Sync:', e); }
