@@ -847,7 +847,15 @@ async function analyzeFood(){
   document.getElementById('aiLoad').style.display='none';
   document.getElementById('aiRes').style.display='block';
 }
-function saveMeal(){if(!pendMeal)return;meals.push(pendMeal);sv('fe_meals_'+td(),meals);clearFood();renderMeals();showN('Comida guardada ✅');}
+function saveMeal(){
+  if(!pendMeal)return;
+  meals.push(pendMeal);
+  sv('fe_meals_'+td(),meals);
+  // Sync daily meal totals to sheet
+  const t=meals.reduce((a,m)=>({kcal:a.kcal+m.kcal,p:a.p+m.protein,c:a.c+m.carbs,f:a.f+m.fat}),{kcal:0,p:0,c:0,f:0});
+  syncSheet('Comida: '+pendMeal.name, {kcal:pendMeal.kcal, proteina:pendMeal.protein, carbos:pendMeal.carbs, grasas:pendMeal.fat});
+  clearFood(); renderMeals(); showN('Comida guardada y sincronizada ✅');
+}
 function deleteMeal(id){meals=meals.filter(m=>m.id!==id);sv('fe_meals_'+td(),meals);renderMeals();}
 function clearMeals(){if(!confirm('¿Limpiar comidas del día?'))return;meals=[];sv('fe_meals_'+td(),[]);renderMeals();}
 function renderMeals(){
@@ -874,8 +882,8 @@ function saveProgress(){
   sv('fe_prog',progRec);
   document.getElementById('dw').textContent=weight;
   ['pw','pbf','pwa','pch','pno'].forEach(id=>document.getElementById(id).value='');
-  renderProgress(); checkMeseta(); showN('Registro guardado ✅');
-  // Update calc
+  syncSheet('Peso', {peso:weight});
+  renderProgress(); checkMeseta(); showN('Registro guardado y sincronizado ✅');
   document.getElementById('calcPeso').value=weight;
   calcMacros();
 }
@@ -961,7 +969,10 @@ function saveRecords(){
   recHistory.unshift({date:today, data:{...recData}});
   if(recHistory.length>12) recHistory.pop();
   sv('fe_recs',recData); sv('fe_rech',recHistory);
-  buildRecords(); showN('Récords guardados 🏆');
+  // Sync records to sheet
+  const recStr = Object.entries(recData).map(([k,v])=>k.split(' ').pop()+':'+v).join(' | ');
+  syncSheet('Records', {kcal: recStr});
+  buildRecords(); showN('Récords guardados y sincronizados 🏆');
 }
 function renderRecHistory(){
   const hist=document.getElementById('recHistory');
@@ -1046,6 +1057,21 @@ function renderShop(){
   document.getElementById('shopTxt').textContent=pct===100?'✅ ¡Lista completa!':pct>50?`${pct}% — ¡casi listo!`:`${pct}% completado`;
 }
 function toggleShop(key){shopCk[key]=!shopCk[key];sv('fe_shop',shopCk);renderShop();}
+
+
+// ============ GOOGLE SHEETS SYNC ============
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyOdwuflY-Wro7HFq8Inux3wUFuqPniwAkxsnBaM_465YMLd3WW77dOMtLjZrTFK9Jf/exec';
+async function syncSheet(tipo, datos){
+  try{
+    const now = new Date();
+    const fecha = now.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' + now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    await fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ fecha, tipo, peso:datos.peso||'', kcal:datos.kcal||'', proteina:datos.proteina||'', carbos:datos.carbos||'', grasas:datos.grasas||'' })
+    });
+  } catch(e){ console.log('Sync:', e); }
+}
 
 // ============ START ============
 window.addEventListener('load',init);
